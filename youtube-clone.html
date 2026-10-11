@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  PlayTube — a YouTube-style home page in pure HTML + CSS
+  ============================================================
+  • ONE file. NO JavaScript. NO external images, fonts or libraries.
+  • Open source: copy it, edit it, break it, learn from it. (MIT-style: do anything you like.)
+  • Rename "PlayTube" to whatever you want (search for "PlayTube").
+
+  HOW THE "INTERACTIVE" PARTS WORK WITHOUT JAVASCRIPT
+  ---------------------------------------------------
+  1. Sidebar toggle  -> a hidden checkbox (#nav-toggle) + a <label> acting as the button.
+                        CSS reacts with  #nav-toggle:checked ~ .sidebar { ... }
+  2. Category chips  -> hidden radio buttons + labels.
+                        The selected chip is styled with  input:checked + label
+  3. Filtering       -> the CSS  :has()  selector hides cards that don't match the chip.
+                        Try clicking "Music", "Gaming", "Cooking"...
+  4. Dark mode       -> follows your OS setting via @media (prefers-color-scheme: dark)
+  5. Hover effects   -> plain :hover and :focus-visible
+
+  FILE MAP (search for these banners)
+  -----------------------------------
+  [1] CSS variables / theme
+  [2] Base + layout
+  [3] Top bar
+  [4] Sidebar
+  [5] Chips + filtering
+  [6] Video grid + cards
+  [7] Responsive rules
+  [8] HTML: icon sprite, header, sidebar, main
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlayTube — Home</title>
+
+  <style>
+    /* ==========================================================
+       [1] CSS VARIABLES / THEME
+       Change colours here and the whole page updates.
+       ========================================================== */
+    :root {
+      --bg:          #ffffff;
+      --bg-soft:     #f2f2f2;   /* chips, search button, hover fills */
+      --bg-hover:    #e5e5e5;
+      --text:        #0f0f0f;
+      --text-muted:  #606060;
+      --border:      #d3d3d3;
+      --brand:       #ff0000;
+      --chip-active-bg:   #0f0f0f;
+      --chip-active-text: #ffffff;
+
+      --topbar-h:   56px;
+      --sidebar-w:  240px;
+      --sidebar-mini-w: 72px;
+      --radius:     12px;
+      --font: Roboto, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    /* Dark theme: same variable names, new values. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:         #0f0f0f;
+        --bg-soft:    #272727;
+        --bg-hover:   #3f3f3f;
+        --text:       #f1f1f1;
+        --text-muted: #aaaaaa;
+        --border:     #303030;
+        --chip-active-bg:   #f1f1f1;
+        --chip-active-text: #0f0f0f;
+      }
+    }
+
+    /* ==========================================================
+       [2] BASE + LAYOUT
+       ========================================================== */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* Visually hide the checkbox/radio inputs but keep them in the DOM
+       (they are the "memory" that makes CSS-only interactivity possible). */
+    .state { position: absolute; opacity: 0; pointer-events: none; }
+
+    /* Shared icon styling. Icons come from the <symbol> sprite in the HTML. */
+    .icon { width: 24px; height: 24px; fill: currentColor; flex: none; }
+
+    /* Round icon button (menu, bell, etc.) */
+    .icon-btn {
+      display: grid; place-items: center;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      color: var(--text);
+    }
+    .icon-btn:hover { background: var(--bg-hover); }
+
+    /* Keyboard focus ring for everything clickable. */
+    :focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; }
+
+    /* ==========================================================
+       [3] TOP BAR
+       Three columns: left (menu + logo) | center (search) | right (actions)
+       ========================================================== */
+    .topbar {
+      position: fixed; inset: 0 0 auto 0;
+      height: var(--topbar-h);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px;
+      background: var(--bg);
+      z-index: 30;
+    }
+    .topbar-left  { display: flex; align-items: center; gap: 16px; min-width: 190px; }
+    .topbar-right { display: flex; align-items: center; gap: 8px;  min-width: 190px; justify-content: flex-end; }
+
+    /* Logo: a red rounded rectangle with a CSS triangle, then the word. */
+    .logo { display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 20px; letter-spacing: -0.5px; }
+    .logo-mark {
+      width: 30px; height: 21px;
+      background: var(--brand);
+      border-radius: 6px;
+      position: relative;
+    }
+    .logo-mark::after {                 /* the white play triangle */
+      content: "";
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-40%, -50%);
+      border-left: 8px solid #fff;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+    }
+
+    /* Search: a pill-shaped input joined to a button. */
+    .search { display: flex; flex: 0 1 640px; margin: 0 24px; }
+    .search input {
+      flex: 1; min-width: 0;
+      height: 40px;
+      padding: 0 16px;
+      font: inherit; font-size: 16px;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-right: 0;
+      border-radius: 40px 0 0 40px;
+    }
+    .search input:focus { border-color: #1c62b9; outline: none; }
+    .search button {
+      width: 64px; height: 40px;
+      display: grid; place-items: center;
+      color: var(--text);
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 0 40px 40px 0;
+      cursor: pointer;
+    }
+    .search button:hover { background: var(--bg-hover); }
+
+    .create-btn {
+      display: flex; align-items: center; gap: 6px;
+      height: 36px; padding: 0 14px;
+      background: var(--bg-soft);
+      border-radius: 18px;
+      font-weight: 500;
+    }
+    .create-btn:hover { background: var(--bg-hover); }
+
+    .avatar-me {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, #7b5cff, #ff5c9e);
+      display: grid; place-items: center;
+      color: #fff; font-weight: 700; font-size: 14px;
+      margin-left: 8px;
+    }
+
+    /* ==========================================================
+       [4] SIDEBAR
+       Default (desktop): full width with icon + label in a row.
+       When #nav-toggle is checked: collapses to a "mini" rail.
+       ========================================================== */
+    .sidebar {
+      position: fixed; top: var(--topbar-h); bottom: 0; left: 0;
+      width: var(--sidebar-w);
+      padding: 12px;
+      overflow-y: auto;
+      background: var(--bg);
+      z-index: 20;
+      transition: width .2s ease;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 24px;
+      height: 40px; padding: 0 12px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+    .nav-item:hover { background: var(--bg-hover); }
+    .nav-item.active { background: var(--bg-soft); font-weight: 600; }
+
+    .nav-divider { height: 1px; background: var(--border); margin: 12px 0; }
+    .nav-heading { padding: 6px 12px; font-size: 16px; font-weight: 500; }
+
+    .sub-avatar {                                   /* little coloured circle for subscriptions */
+      width: 24px; height: 24px; border-radius: 50%;
+      display: grid; place-items: center;
+      color: #fff; font-size: 11px; font-weight: 700;
+      background: var(--c);
+    }
+
+    /* --- Mini (collapsed) sidebar on desktop --- */
+    @media (min-width: 801px) {
+      #nav-toggle:checked ~ .sidebar { width: var(--sidebar-mini-w); padding: 4px; }
+      #nav-toggle:checked ~ .sidebar .nav-item {
+        flex-direction: column; justify-content: center;
+        gap: 6px; height: 74px; padding: 0;
+        font-size: 10px;
+      }
+      /* In mini mode, hide the extra sections to match the real thing. */
+      #nav-toggle:checked ~ .sidebar .nav-extra { display: none; }
+    }
+
+    /* ==========================================================
+       [5] CHIPS (category filter bar) + CSS-ONLY FILTERING
+       ========================================================== */
+    .chips-bar {
+      position: sticky; top: var(--topbar-h);
+      z-index: 10;
+      display: flex; gap: 12px;
+      padding: 12px 24px;
+      overflow-x: auto;
+      background: var(--bg);
+      scrollbar-width: none;           /* hide the scrollbar in Firefox */
+    }
+    .chips-bar::-webkit-scrollbar { display: none; }   /* ...and in Chrome/Safari */
+
+    .chip {
+      flex: none;
+      padding: 0 12px; height: 32px;
+      display: inline-flex; align-items: center;
+      background: var(--bg-soft);
+      border-radius: 8px;
+      font-weight: 500; white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+    .chip:hover { background: var(--bg-hover); }
+
+    /* The radio right before a label tells us if that chip is selected. */
+    .state:checked + .chip {
+      background: var(--chip-active-bg);
+      color: var(--chip-active-text);
+    }
+    .state:focus-visible + .chip { outline: 2px solid #3ea6ff; outline-offset: 2px; }
+
+    /* FILTERING: if a radio is checked anywhere inside <main>, hide every
+       card whose data-cat does NOT contain that category.
+       The "All" chip has no rule, so everything shows.            */
+    main:has(#chip-music:checked)   .card:not([data-cat~="music"])   { display: none; }
+    main:has(#chip-gaming:checked)  .card:not([data-cat~="gaming"])  { display: none; }
+    main:has(#chip-cooking:checked) .card:not([data-cat~="cooking"]) { display: none; }
+    main:has(#chip-tech:checked)    .card:not([data-cat~="tech"])    { display: none; }
+    main:has(#chip-travel:checked)  .card:not([data-cat~="travel"])  { display: none; }
+
+    /* ==========================================================
+       [6] VIDEO GRID + CARDS
+       ========================================================== */
+    main {
+      margin-left: var(--sidebar-w);
+      padding-top: var(--topbar-h);
+      transition: margin-left .2s ease;
+    }
+    @media (min-width: 801px) {
+      #nav-toggle:checked ~ main { margin-left: var(--sidebar-mini-w); }
+    }
+
+    /* auto-fill + minmax = as many columns as fit, each at least 300px wide. */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 32px 16px;
+      padding: 8px 24px 48px;
+    }
+
+    .card { display: block; }
+
+    /* Thumbnail: a 16:9 box painted with a gradient.
+       Each card sets its own --c1 / --c2 colours inline (see HTML).
+       Swap the gradient for  background: url(my-image.jpg) center/cover;  to use real pictures. */
+    .thumb {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,.25), transparent 45%),
+        linear-gradient(135deg, var(--c1), var(--c2));
+      transition: border-radius .15s ease;
+    }
+    .card:hover .thumb { border-radius: 0; }          /* the real site squares the corners on hover */
+
+    /* Big faint title text drawn inside the thumbnail (taken from data-label). */
+    .thumb::before {
+      content: attr(data-label);
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      padding: 16px;
+      text-align: center;
+      font-size: 28px; font-weight: 800; line-height: 1.1;
+      color: rgba(255,255,255,.92);
+      text-shadow: 0 2px 12px rgba(0,0,0,.35);
+    }
+
+    /* Duration badge in the bottom-right corner. */
+    .duration {
+      position: absolute; right: 8px; bottom: 8px;
+      padding: 1px 4px;
+      font-size: 12px; font-weight: 500;
+      color: #fff;
+      background: rgba(0,0,0,.8);
+      border-radius: 4px;
+    }
+
+    /* Red progress bar for "partly watched" videos. */
+    .progress {
+      position: absolute; left: 0; bottom: 0;
+      height: 4px; width: var(--p);
+      background: var(--brand);
+    }
+
+    /* Row under the thumbnail: avatar | text block */
+    .meta { display: flex; gap: 12px; margin-top: 12px; }
+    .channel-avatar {
+      width: 36px; height: 36px; flex: none;
+      border-radius: 50%;
+      display: grid; place-items: center;
+      color: #fff; font-weight: 700;
+      background: var(--c);
+    }
+    .title {
+      margin: 0 0 4px;
+      font-size: 16px; font-weight: 500; line-height: 22px;
+      /* Clamp the title to 2 lines, then "…" */
+      display: -webkit-box;
+      -webkit-line-clamp: 2; line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .sub { color: var(--text-muted); font-size: 14px; }
+    .sub a:hover { color: var(--text); }
+
+    /* Small badge, e.g. "New" */
+    .badge {
+      display: inline-block;
+      margin-top: 4px; padding: 0 6px;
+      font-size: 12px; font-weight: 500;
+      background: var(--bg-soft);
+      color: var(--text-muted);
+      border-radius: 4px;
+    }
+
+    /* ==========================================================
+       [7] RESPONSIVE RULES
+       ========================================================== */
+    @media (max-width: 1100px) {
+      .search { margin: 0 8px; }
+      .topbar-left, .topbar-right { min-width: 0; }
+      .create-btn span { display: none; }   /* icon only */
+    }
+
+    /* Phones/tablets: sidebar is hidden, and slides in as an overlay when toggled. */
+    @media (max-width: 800px) {
+      main { margin-left: 0; }
+      .sidebar { transform: translateX(-100%); transition: transform .2s ease; width: 260px; }
+      #nav-toggle:checked ~ .sidebar { transform: none; box-shadow: 0 0 24px rgba(0,0,0,.4); }
+
+      /* Dark backdrop; tapping it unchecks the box (it's a <label for="nav-toggle">). */
+      .backdrop {
+        display: none;
+        position: fixed; inset: var(--topbar-h) 0 0 0;
+        background: rgba(0,0,0,.5);
+        z-index: 15;
+      }
+      #nav-toggle:checked ~ .backdrop { display: block; }
+
+      .topbar-right .hide-sm, .avatar-me { display: none; }
+      .grid { grid-template-columns: 1fr; padding: 8px 12px 48px; gap: 24px; }
+      .chips-bar { padding: 12px; }
+      .logo-text { display: none; }
+    }
+    @media (min-width: 801px) { .backdrop { display: none; } }
+
+    /* Respect "reduce motion" accessibility setting. */
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ==========================================================
+       [8] HTML
+       ========================================================== -->
+
+  <!-- ICON SPRITE ------------------------------------------------
+       Define each icon ONCE here as a <symbol>, then reuse it anywhere with:
+         <svg class="icon"><use href="#i-home"/></svg>
+       Paths are from the open-source Material Icons set (Apache 2.0). -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-menu"    viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></symbol>
+    <symbol id="i-search"  viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+    <symbol id="i-home"    viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></symbol>
+    <symbol id="i-shorts"  viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></symbol>
+    <symbol id="i-subs"    viewBox="0 0 24 24"><path d="M20 8H4V6h16v2zm-2-6H6v2h12V2zm4 10v8c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2v-8c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2zm-6 4l-6-3.27v6.53L16 16z"/></symbol>
+    <symbol id="i-library" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M13 3a9 9 0 00-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0013 21a9 9 0 000-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></symbol>
+    <symbol id="i-like"    viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></symbol>
+    <symbol id="i-plus"    viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+    <symbol id="i-bell"    viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></symbol>
+  </svg>
+
+  <!-- STATE INPUTS -----------------------------------------------
+       The sidebar checkbox MUST come before .sidebar, .backdrop and <main>
+       because the CSS uses the sibling selector (~), which only looks forward. -->
+  <input type="checkbox" id="nav-toggle" class="state" aria-label="Toggle sidebar">
+
+  <!-- TOP BAR ---------------------------------------------------->
+  <header class="topbar">
+    <div class="topbar-left">
+      <label for="nav-toggle" class="icon-btn" title="Menu" aria-label="Menu">
+        <svg class="icon"><use href="#i-menu"/></svg>
+      </label>
+      <a href="#" class="logo" aria-label="PlayTube home">
+        <span class="logo-mark"></span>
+        <span class="logo-text">PlayTube</span>
+      </a>
+    </div>
+
+    <!-- role="search" instead of <form> so pressing Enter doesn't reload the page (no JS here). -->
+    <div class="search" role="search">
+      <input type="search" placeholder="Search" aria-label="Search">
+      <button type="button" aria-label="Search"><svg class="icon"><use href="#i-search"/></svg></button>
+    </div>
+
+    <div class="topbar-right">
+      <a href="#" class="create-btn hide-sm"><svg class="icon"><use href="#i-plus"/></svg><span>Create</span></a>
+      <a href="#" class="icon-btn hide-sm" aria-label="Notifications"><svg class="icon"><use href="#i-bell"/></svg></a>
+      <span class="avatar-me" title="Your account">Y</span>
+    </div>
+  </header>
+
+  <!-- SIDEBAR ---------------------------------------------------->
+  <nav class="sidebar" aria-label="Main">
+    <a href="#" class="nav-item active"><svg class="icon"><use href="#i-home"/></svg>Home</a>
+    <a href="#" class="nav-item"><svg class="icon"><use href="#i-shorts"/></svg>Shorts</a>
+    <a href="#" class="nav-item"><svg class="icon"><use href="#i-subs"/></svg>Subscriptions</a>
+
+    <div class="nav-extra">
+      <div class="nav-divider"></div>
+      <div class="nav-heading">You</div>
+      <a href="#" class="nav-item"><svg class="icon"><use href="#i-library"/></svg>Library</a>
+      <a href="#" class="nav-item"><svg class="icon"><use href="#i-history"/></svg>History</a>
+      <a href="#" class="nav-item"><svg class="icon"><use href="#i-like"/></svg>Liked videos</a>
+
+      <div class="nav-divider"></div>
+      <div class="nav-heading">Subscriptions</div>
+      <a href="#" class="nav-item"><span class="sub-avatar" style="--c:#e8590c">N</span>Neon Harbor</a>
+      <a href="#" class="nav-item"><span class="sub-avatar" style="--c:#2b8a3e">P</span>Pixel Pilgrim</a>
+      <a href="#" class="nav-item"><span class="sub-avatar" style="--c:#1971c2">C</span>Circuit Lab</a>
+      <a href="#" class="nav-item"><span class="sub-avatar" style="--c:#c2255c">S</span>Saffron &amp; Salt</a>
+    </div>
+  </nav>
+
+  <!-- Clickable dark area behind the sidebar on small screens. -->
+  <label for="nav-toggle" class="backdrop" aria-label="Close menu"></label>
+
+  <!-- MAIN CONTENT ---------------------------------------------->
+  <main>
+    <!-- CATEGORY CHIPS
+         Pattern:  <input radio id="x" class="state"> <label for="x" class="chip">
+         The input MUST sit directly before its label (the CSS uses the + selector).
+         All radios share name="cat" so only one can be selected at a time. -->
+    <div class="chips-bar" role="radiogroup" aria-label="Filter videos by category">
+      <input type="radio" name="cat" id="chip-all" class="state" checked>
+      <label for="chip-all" class="chip">All</label>
+
+      <input type="radio" name="cat" id="chip-music" class="state">
+      <label for="chip-music" class="chip">Music</label>
+
+      <input type="radio" name="cat" id="chip-gaming" class="state">
+      <label for="chip-gaming" class="chip">Gaming</label>
+
+      <input type="radio" name="cat" id="chip-cooking" class="state">
+      <label for="chip-cooking" class="chip">Cooking</label>
+
+      <input type="radio" name="cat" id="chip-tech" class="state">
+      <label for="chip-tech" class="chip">Tech</label>
+
+      <input type="radio" name="cat" id="chip-travel" class="state">
+      <label for="chip-travel" class="chip">Travel</label>
+    </div>
+
+    <!-- VIDEO GRID
+         Each card is one <a>. To add a video, copy a whole <a class="card"> block and edit:
+           --c1 / --c2   thumbnail gradient colours
+           data-label    big text inside the thumbnail
+           data-cat      space-separated categories (must match the chip ids above)
+           --c           channel avatar colour
+           --p           (optional) watched-progress width, e.g. 40%                      -->
+    <section class="grid" aria-label="Recommended videos">
+
+      <a href="#" class="card" data-cat="music">
+        <div class="thumb" style="--c1:#7b2ff7; --c2:#f107a3" data-label="Midnight Sessions">
+          <span class="duration">3:42:10</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#7b2ff7">N</span>
+          <div>
+            <h3 class="title">Midnight Sessions: 3 Hours of Lo-fi Synth for Late-Night Focus</h3>
+            <div class="sub">Neon Harbor</div>
+            <div class="sub">1.2M views · 3 weeks ago</div>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="gaming">
+        <div class="thumb" style="--c1:#0b8457; --c2:#0a2e36" data-label="No-Death Run">
+          <span class="duration">28:15</span>
+          <span class="progress" style="--p:62%"></span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#2b8a3e">P</span>
+          <div>
+            <h3 class="title">I Beat the Hardest Pixel Dungeon Without Taking a Single Hit</h3>
+            <div class="sub">Pixel Pilgrim</div>
+            <div class="sub">864K views · 5 days ago</div>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="tech">
+        <div class="thumb" style="--c1:#1c7ed6; --c2:#0b1f3a" data-label="Build a Radio">
+          <span class="duration">14:08</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#1971c2">C</span>
+          <div>
+            <h3 class="title">Building a Working FM Radio From Scratch With Just 6 Parts</h3>
+            <div class="sub">Circuit Lab</div>
+            <div class="sub">402K views · 2 months ago</div>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="cooking">
+        <div class="thumb" style="--c1:#f76707; --c2:#c92a2a" data-label="Perfect Paella">
+          <span class="duration">11:36</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#c2255c">S</span>
+          <div>
+            <h3 class="title">Perfect Paella at Home: The Crispy Bottom Trick Nobody Tells You</h3>
+            <div class="sub">Saffron &amp; Salt</div>
+            <div class="sub">2.1M views · 1 year ago</div>
+            <span class="badge">New</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="travel">
+        <div class="thumb" style="--c1:#15aabf; --c2:#364fc7" data-label="Iceland on $50">
+          <span class="duration">22:51</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#0c8599">W</span>
+          <div>
+            <h3 class="title">Seven Days Across Iceland on a $50-a-Day Budget (Honest Breakdown)</h3>
+            <div class="sub">Wander Notes</div>
+            <div class="sub">615K views · 4 months ago</div>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="music tech">
+        <div class="thumb" style="--c1:#f59f00; --c2:#e03131" data-label="Synth From Scrap">
+          <span class="duration">17:20</span>
+          <span class="progress" style="--p:25%"></span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#e8590c">N</span>
+          <div>
+            <h3 class="title">Turning Old Keyboards and Cables Into a Playable Analog Synthesizer</h3>
+            <div class="sub">Neon Harbor</div>
+            <div class="sub">298K views · 8 months ago</div>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="gaming tech">
+        <div class="thumb" style="--c1:#5f3dc4; --c2:#212529" data-label="Retro Handheld">
+          <span class="duration">9:47</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#2b8a3e">P</span>
+          <div>
+            <h3 class="title">I Built a Retro Handheld Console That Plays 5,000 Games</h3>
+            <div class="sub">Pixel Pilgrim</div>
+            <div class="sub">1.8M views · 6 months ago</div>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="cooking">
+        <div class="thumb" style="--c1:#e67700; --c2:#7048e8" data-label="Sourdough 101">
+          <span class="duration">19:03</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#c2255c">S</span>
+          <div>
+            <h3 class="title">Sourdough for Complete Beginners: From Starter to First Loaf in 48 Hours</h3>
+            <div class="sub">Saffron &amp; Salt</div>
+            <div class="sub">3.4M views · 2 years ago</div>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="travel">
+        <div class="thumb" style="--c1:#e8590c; --c2:#862e9c" data-label="Kyoto at Dawn">
+          <span class="duration">6:12</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#0c8599">W</span>
+          <div>
+            <h3 class="title">Kyoto at Dawn: Walking the Empty Streets Before the Crowds Arrive</h3>
+            <div class="sub">Wander Notes</div>
+            <div class="sub">940K views · 9 months ago</div>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="tech">
+        <div class="thumb" style="--c1:#37b24d; --c2:#087f5b" data-label="Solar Setup">
+          <span class="duration">25:44</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#1971c2">C</span>
+          <div>
+            <h3 class="title">Off-Grid Solar for a Small Cabin: Real Costs After One Full Year</h3>
+            <div class="sub">Circuit Lab</div>
+            <div class="sub">521K views · 11 months ago</div>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="music">
+        <div class="thumb" style="--c1:#d6336c; --c2:#4c1d95" data-label="Live in the Rain">
+          <span class="duration">1:04:22</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#e8590c">N</span>
+          <div>
+            <h3 class="title">Live in the Rain: Full Acoustic Set From a Rooftop in the City</h3>
+            <div class="sub">Neon Harbor</div>
+            <div class="sub">77K views · 12 hours ago</div>
+            <span class="badge">New</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="#" class="card" data-cat="gaming">
+        <div class="thumb" style="--c1:#f03e3e; --c2:#1a1b41" data-label="Speedrun WR">
+          <span class="duration">5:31</span>
+        </div>
+        <div class="meta">
+          <span class="channel-avatar" style="--c:#2b8a3e">P</span>
+          <div>
+            <h3 class="title">World Record Speedrun Explained: Every Skip, Glitch, and Frame-Perfect Trick</h3>
+            <div class="sub">Pixel Pilgrim</div>
+            <div class="sub">2.6M views · 1 month ago</div>
+          </div>
+        </div>
+      </a>
+
+    </section>
+  </main>
+</body>
+</html>
